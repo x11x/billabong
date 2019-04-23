@@ -16,10 +16,10 @@ Board.prototype.createGrid = function (billabongRows, billabongCols, trackRadius
   this.trackRadius = trackRadius || this.trackRadius || 6;
   this.numRows = billabongRows + 2 * trackRadius;
   this.numCols = billabongCols + 2 * trackRadius;
-  this.br1 = trackRadius;
-  this.br2 = trackRadius + billabongRows;
-  this.bc1 = trackRadius;
-  this.bc2 = trackRadius + billabongCols;
+  this._br1 = trackRadius;
+  this._br2 = trackRadius + billabongRows;
+  this._bc1 = trackRadius;
+  this._bc2 = trackRadius + billabongCols;
   this.startLineCol = Math.floor(this.numCols / 2) + 1;
   var grid = new Array(numRows);
   for (var i = 0; i < numRows; ++i) grid[i] = new Array(numCols);
@@ -27,15 +27,13 @@ Board.prototype.createGrid = function (billabongRows, billabongCols, trackRadius
 }
 
 Board.prototype.isRefInBillabong = function (row, col) {
-  return row >= this.br1 && row <= this.br2 &&
-    col >= this.bc1 && col <= this.bc2;
+  return row >= this._br1 && row <= this._br2 &&
+    col >= this._bc1 && col <= this._bc2;
 };
 
-Board.prototype.createHop = function (row1, col1, row2, col2) {
-  if (!this.isValidRef(row1, col1) || !this.isValidRef(row2, col2)) return null;
-  var hop = new Hop;
-  hop.set2Refs(row1, col1, row2, col2);
-  return hop;
+Board.prototype.createHop = function (row1, col1, row2, col2, pinEnd) {
+  return (new Hop(row1, col1, row2, col2, null, null, null, pinEnd))
+    .calcStepsAndDir();
 };
 
 Board.prototype.setRooAt = function (row, col, roo) {
@@ -59,11 +57,15 @@ Board.prototype.isValidRef = function (row, col) {
 };
 
 Board.prototype.isValidHop = function (hop) {
-  if (!hop || !hop.validate()) return false;
+  if (!hop || !hop.isValid()) return false;
   var steps = hop.steps;
   if (steps < 1) return false;
-  var pivotDistance = (steps - 1) / 2;
   var row1 = hop.row1, col1 = hop.col1;
+  var row2 = hop.row2, col2 = hop.col2;
+  if (!this.isValidRef(row1, col1) || !this.isValidRef(row2, col2)) {
+    return false;
+  }
+  var pivotDistance = (steps - 1) / 2;
   var vdir = hop.vdir, hdir = hop.hdir;
   // Compute row and column of pivot roo
   var pivotRow = row1 + vdir * pivotDistance;
@@ -82,7 +84,7 @@ Board.prototype.isValidHop = function (hop) {
   return true;
 };
 
-Board.prototype.doesHopCrossStartLine(hop) {
+Board.prototype.doesHopCrossStartLine = function (hop) {
   var startLineCol = this.startLineCol;
   var trackRadius = this.trackRadius;
   var row1 = hop.row1, col1 = hop.col1;
@@ -120,60 +122,106 @@ Board.prototype.createMove = function () {
 function Move(board) {
   this.board = board;
   this.hops = [];
-  this.lastRef = null;
+  this.lastRow = this.lastCol = null;
+  this.isSingleStep = false;
 }
 
 Move.prototype.reset = function () {
-  this.hops.length = 0;
-  this.lastRef = null;
+  this.hops.length = this.lastRow = this.lastCol = 0;
+  this.isSingleStep = false;
 };
 
 Move.prototype.addHop = function (hop) {
-  if (!board.isValidHop(hop)) return false;
-  var lastRef = this.lastRef;
-  if (lastRef && !lastRef.equals(hop.r1)) return false;
+  if (this.isSingleStep || !board.isValidHop(hop)) return false;
+  var lastRow = this.lastRow, lastCol = this.lastCol;
+  if (lastRow != null && lastCol != null &&
+    hop.steps === 1 ||
+    lastRow !== hop.row1 || lastCol !== hop.col1) return false;
   this.hops.push(hop);
-  this.lastRef = hop.r2;
+  this.lastRow = hop.row2;
+  this.lastCol = hop.col2;
+  // Only one single step (hop with steps == 1) allowed per move
+  this.isSingleStep = hop.steps === 1;
   return true;
 };
 
 
-function Hop(row1, col1, row2, col2, vdir, hdir, steps) {
-  this.row1 = row1 || null;
-  this.col1 = col1 || null;
-  this.row2 = row2 || null;
-  this.col2 = col2 || null;
-  this.vdir = vdir || null;
-  this.hdir = hdir || null;
-  this.steps = steps || null;
-};
+function Hop(row1, col1, row2, col2, vdir, hdir, steps, pinEnd) {
+  (this.row1 = this.col1 = this.row2 = this.col2 = this.vdir = this.hdir =
+     this.steps = 0);
+  this._endPin = false;
+  this.setStart(row1, col1);
+  this.setEnd(row2, col2, pinEnd);
+  this.setDirections(vdir, hdir);
+  this.setSteps(steps);
+}
 
 Hop.prototype._setParams = Hop;
 
 Hop.prototype.clone = function () {
   return new Hop(this.row1, this.col1, this.row2, this.col2,
-    this.vdir, this.hdir, this.steps);
+    this.vdir, this.hdir, this.steps, this._endPin);
 };
 
-Hop.prototype.validate = function () {
+Hop.prototype.isValid = function () {
   var rows = this.row2 - this.row1, cols = this.col2 - this.col1;
   var absRows = Math.abs(rows), absCols = Math.abs(cols);
   var steps = absRows || absCols;
-  return this.isValid = rows && cols && absRows !== absCols && steps % 2 === 0;
+  // Either rows or cols must be 0, or absolute values must be the same
+  // in both directions. Also, must be an odd number of steps >= 1
+  return !(rows && cols && absRows !== absCols || !steps || steps % 2 === 0);
 };
 
-Hop.prototype.set2Refs = function (row1, col1, row2, col2) {
-  var rows = row2 - row1;
-  var cols = col2 - col1;
-  var vdir = Math.sign(rows), hdir = Math.sign(cols);
-  var steps = Math.abs(rows) || Math.abs(cols);
-  this._setParams(row1, col1, row2, col2, vdir, hdir, steps);
+Hop.prototype.setStart = function (row, col, pin) {
+  this.row1 = Math.max(row << 0, 0);
+  this.col1 = Math.max(col << 0, 0);
+  if (pin) this.pinStart();
+  return this;
 };
 
-Hop.prototype.set1RefDirAndSteps = function (row1, col1, vdir, hdir, steps) {
-  vdir = Math.sign(vdir);
-  hdir = Math.sign(hdir);
-  steps = Math.abs(steps);
-  var row2 = row1 + vdir * steps, col2 = col1 + hdir * steps;
-  this._setParams(row1, col1, row2, col2, vdir, hdir, steps);
+Hop.prototype.setEnd = function (row, col, pin) {
+  this.row2 = Math.max(row << 0, 0);
+  this.col2 = Math.max(col << 0, 0);
+  if (pin) this.pinEnd();
+  return this;
+};
+
+Hop.prototype.pinStart = function (unpin) {
+  this._endPin = !!unpin;
+  return this;
+};
+
+Hop.prototype.pinEnd = function (unpin) {
+  this._endPin = !unpin;
+  return this;
+};
+
+Hop.prototype.setDirections = function (hdir, vdir) {
+  this.hdir = Math.sign(hdir) << 0;
+  this.vdir = Math.sign(vdir) << 0;
+  return this;
+};
+
+Hop.prototype.setSteps = function (steps) {
+  this.steps = Math.abs(steps << 0);
+  return this;
+};
+
+Hop.prototype.calcStepsAndDir = function () {
+  var rows = this.row2 - this.row1;
+  var cols = this.col2 - this.col1;
+  return this.setDirections(rows, cols).setSteps(rows || cols);
+};
+
+Hop.prototype.calcUnpinnedRef = function () {
+  if (this._endPin) {
+    this.setEnd(
+      this.row2 - this.vdir * this.steps,
+      this.col2 - this.hdir * this.steps);
+  } else {
+    this.setStart(
+      this.row1 + this.vdir * this.steps,
+      this.col1 + this.hdir * this.steps);
+  }
+  return this;
 };
