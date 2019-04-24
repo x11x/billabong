@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
   <head>
+  <meta charset="UTF-8">
 <style>
 table {
   margin: 0 auto;
@@ -31,13 +32,25 @@ table {
             user-select: none; /* Non-prefixed version, currently
                                   supported by Chrome and Opera */
 }
-.startline { border-left: 3px solid darkblue;
+.startline { border-left: 3px solid darkblue; }
+
+#debug {
+  width: 200px; height: 500px; position: fixed; left: 0; top: 100px;
+}
 </style>
   </head>
   <body>
+    <textarea id="debug"></textarea>
+    <script src="billabong.js"></script>
     <script src="view.js"></script>
+    <script src="explore-test.js"></script>
   <script>
-var t = document.body.appendChild(createTable(14, 16, {onCell:addClasses}));
+var board = new Board;
+var boardView = new BoardView(board);
+boardView.createGrid();
+boardView.attachGridTo(boardView.document.body);
+var dhops = new DrawHops(boardView);
+dhops.attachListeners();
 /*
 t.onclick = function (event) {
   if (event.target.nodeName === 'TD') {

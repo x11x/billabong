@@ -1,29 +1,62 @@
 
+function BoardView(board, doc) {
+  this.board = board;
+  this.elems = {};
+  this.document = doc || document;
+}
+
+BoardView.prototype.createGrid = function () {
+  var board = this.board;
+  var elems = this.elems;
+  createTable(board.numRows, board.numCols, {
+    document: this.document,
+    refsCtx: elems,
+    onCell: onCell
+  });
+
+
+  function onCell(cell, i, j, row, table) {
+    var className = 'r' + i + ' c' + j;
+    if (board.isRefInBillabong(i, j)) className += ' billabong';
+    if (board.isRefOnStartLine(i, j)) className += ' startline';
+    cell.className = className;
+    cell.setAttribute('data-grid-ref', i + ',' + j);
+  }
+};
+
+BoardView.prototype.attachGridTo = function (container) {
+  var ownerDoc = container.ownerDocument;
+  var doc = this.document = this.document || this.elems.document ||
+    ownerDoc || document;
+  container.appendChild(this.elems.table);
+};
+
 function createTable(rows, cols, options) {
   if (!options) options = {};
   var doc = options.document || this.document || document;
   var onCell = options.onCell || function () {};
   var table = doc.createElement('table');
+  var refsCtx = options.refsCtx || {};
   var i, j, r, e;
+
+  var rowArray;
+  var cellRefs = new Array(rows);
+  var rowRefs = new Array(rows);
 
   for (i = 0; i < rows; ++i) {
     r = doc.createElement('tr');
+    rowArray = cellRefs[i] = new Array(cols);
     for (j = 0; j < cols; ++j) {
       e = doc.createElement('td');
       e.appendChild(document.createTextNode('\u00A0'));
       onCell(e, i, j, r, table);
-      r.appendChild(e);
+      rowArray[j] = r.appendChild(e);
     }
-    table.appendChild(r);
+    rowRefs[i] = table.appendChild(r);
   }
-  return table;
-}
-
-function addClasses(cell, i, j, row, table) {
-  cell.className = 'r' + i + ' c' + j;
-  if (i >= 6 && i < 8 && j >= 6 && j < 10) {
-    cell.className += ' billabong';
-  }
-  if (i >= 8 && j === 8) cell.className += ' startline'
-
+  refsCtx.table = table;
+  refsCtx.rows = rowRefs;
+  refsCtx.cells = cellRefs;
+  refsCtx.document = doc;
+  return refsCtx;
 }
