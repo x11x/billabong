@@ -27,7 +27,7 @@ DrawVectorView.prototype.getGridRefFromElem = function (e) {
 DrawVectorView.prototype.attachListeners = function (ctx) {
   if (!ctx) ctx = this.boardView.elems.table;
   this.listenerCtx = ctx;
-  var pointerEventType = window.PointerEvents ? 'pointer' : 'mouse';
+  var pointerEventType = window.PointerEvent ? 'pointer' : 'mouse';
   ctx.addEventListener(pointerEventType + 'down', this._onMouseDownListener, false)
   ctx.addEventListener(pointerEventType + 'move', this._onMouseMoveListener, false)
   ctx.addEventListener(pointerEventType + 'up', this._onMouseUpListener, false)
@@ -35,7 +35,7 @@ DrawVectorView.prototype.attachListeners = function (ctx) {
 
 DrawVectorView.prototype.detachListeners = function (ctx) {
   if (!ctx) ctx = this.listenerCtx || this.boardView.elems.table;
-  var pointerEventType = window.PointerEvents ? 'pointer' : 'mouse';
+  var pointerEventType = window.PointerEvent ? 'pointer' : 'mouse';
   ctx.removeEventListener(pointerEventType + 'down', this._onMouseDownListener, false)
   ctx.removeEventListener(pointerEventType + 'move', this._onMouseMoveListener, false)
   ctx.removeEventListener(pointerEventType + 'up', this._onMouseUpListener, false)
