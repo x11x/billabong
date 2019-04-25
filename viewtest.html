@@ -43,14 +43,14 @@ table {
     <textarea id="debug"></textarea>
     <script src="billabong.js"></script>
     <script src="view.js"></script>
-    <script src="explore-test.js"></script>
+    <script src="draw-vector-view.js"></script>
   <script>
 var board = new Board;
 var boardView = new BoardView(board);
 boardView.createGrid();
 boardView.attachGridTo(boardView.document.body);
-var dhops = new DrawHops(boardView);
-dhops.attachListeners();
+var dvv = new DrawVectorView(boardView);
+dvv.attachListeners();
 /*
 t.onclick = function (event) {
   if (event.target.nodeName === 'TD') {

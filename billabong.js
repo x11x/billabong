@@ -1,6 +1,4 @@
 
-var PI_ON_4 = Math.PI / 4;
-
 function Board(options) {
   if (!options) options = {};
   this.billabongRows = 2;
@@ -26,7 +24,7 @@ Board.prototype.createGrid = function (billabongRows, billabongCols, trackRadius
   var grid = new Array(numRows);
   for (var i = 0; i < numRows; ++i) grid[i] = new Array(numCols);
   this.grid = grid;
-}
+};
 
 Board.prototype.isRefInBillabong = function (row, col) {
   return row >= this._br1 && row < this._br2 &&
@@ -35,10 +33,11 @@ Board.prototype.isRefInBillabong = function (row, col) {
 
 Board.prototype.isRefOnStartLine = function (row, col) {
   return row >= this._br2 && col === this.startLineCol;
-}
+};
 
-Board.prototype.createHop = function (row1, col1, row2, col2, pinEnd) {
-  return (new Hop(row1, col1, row2, col2, null, null, null, pinEnd))
+Board.prototype.createVector = function (row1, col1, row2, col2) {
+  return (new Vector(row1, col1, row2, col2, null, null, null))
+    .setGridConstraints(this.numRows, this.numCols)
     .calcStepsAndDir();
 };
 
@@ -55,24 +54,24 @@ Board.prototype.isRooAt = function (row, col) {
 Board.prototype.getRoo = function (row, col) {
   if (!this.isValidRef(row, col)) return false;
   return this.grid[row][col];
-}
+};
 
 Board.prototype.isValidRef = function (row, col) {
-  return row < this.numRows && col < this.numCols &&
+  return row >= 0 && row < this.numRows && col >= 0 && col < this.numCols &&
     !this.isRefInBillabong(row, col);
 };
 
-Board.prototype.isValidHop = function (hop) {
-  if (!hop || !hop.isValid()) return false;
-  var steps = hop.steps;
+Board.prototype.isValidHop = function (vector) {
+  if (!vector || !vector.isValid()) return false;
+  var steps = vector.steps;
   if (!steps || steps % 2 === 0) return false;
-  var row1 = hop.row1, col1 = hop.col1;
-  var row2 = hop.row2, col2 = hop.col2;
+  var row1 = vector.row1, col1 = vector.col1;
+  var row2 = vector.row2, col2 = vector.col2;
   if (!this.isValidRef(row1, col1) || !this.isValidRef(row2, col2)) {
     return false;
   }
   var pivotDistance = (steps - 1) / 2;
-  var vdir = hop.vdir, hdir = hop.hdir;
+  var vdir = vector.vdir, hdir = vector.hdir;
   // Compute row and column of pivot roo
   var pivotRow = row1 + vdir * pivotDistance;
   var pivotCol = col1 + hdir * pivotDistance;
@@ -90,34 +89,45 @@ Board.prototype.isValidHop = function (hop) {
   return true;
 };
 
-Board.prototype.doesHopCrossStartLine = function (hop) {
-  if (!hop.isValid()) return false;
+Board.prototype.doesVectorCrossStartLine = function (vector) {
+  if (!vector.isValid()) return 0;
+  var rowAtStartLine;
   var startLineCol = this.startLineCol;
   var br2 = this._br2;
-  var row1 = hop.row1, col1 = hop.col1;
-  var hdir = hop.hdir;
-  // Only consider hops that have a horizontal direction, start before the
-  // column of the start line and end after the start line column
-  if (hdir && col1 <= startLineCol && hop.col2 >= startLineCol) {
-    // Diagonal hops (hops with both horiz. and vertical components)
-    if (hop.vdir) {
-      // Compute the row number where the hop crosses the start line;
-      var rowAtStartLine = row1 + hdir * (startLineCol - col1);
-      // Check that row where the hop crosses the start line is greater than the
-      // bottom billabong row (br2) (i.e. south of the billabong)
-      if (rowAtStartLine > br2) return true;
+  var row1 = vector.row1, col1 = vector.col1;
+  var col2 = vector.col2;
+  var hdir = vector.hdir, vdir = vector.vdir;
+  // Only consider vectors that have a horizontal direction
+  if (!hdir) return 0;
 
-      // Hops with no vertical component that end in a row less than the track
-      // radius (i.e. south of the billabong) must have crossed the start line
-    } else if (hop.row2 > br2) return true
-  }
-  return false;
+  // Does the vector start and end (resp.) left of the start line?
+  var startsLeft = col1 < startLineCol, endsLeft = col2 < startLineCol;
+
+  // If vector starts and ends on the same side of the start line, it can't
+  // cross it
+  if (startsLeft === endsLeft) return 0;
+
+  // Calculate distance from start line in horizontal direction (num cols)
+  var stepsToStartLine = Math.abs(startLineCol - col1);
+  // If vector has vertical component (i.e. it is a diagonal vector)
+  if (vdir) {
+    // Compute the row number at the start line column
+    var rowAtStartLine = row1 + vdir * stepsToStartLine;
+    // If this row is south of the billabong, its a crossing
+    // (return the direction of the crossing which is the opposite of the
+    // horizontal direction of the vector)
+    if (rowAtStartLine >= br2) return -hdir;
+  // Purely horizontal vectors, we only need to look at the end row
+  } else if (vector.row2 >= br2) return -hdir;
+
+  // No crossing otherwise
+  return 0;
 };
 
 Board.prototype.doesMoveCrossStartLine = function (move) {
-  var hops = move.hops, l = hops.length;
+  var hop = move.hops, l = hops.length;
   for (var i = 0; i < l; ++i) {
-    if (this.doesHopCrossStartLine(hops[i])) return true;
+    if (this.doesVectorCrossStartLine(hops[i])) return true;
   }
 };
 
@@ -147,13 +157,13 @@ Move.prototype.addHop = function (hop) {
   this.hops.push(hop);
   this.lastRow = hop.row2;
   this.lastCol = hop.col2;
-  // Only one single step (hop with steps == 1) allowed per move
+  // Only one single step (vector with steps == 1) allowed per move
   this.isSingleStep = hop.steps === 1;
   return true;
 };
 
 
-function Hop(row1, col1, row2, col2, vdir, hdir, steps) {
+function Vector(row1, col1, row2, col2, vdir, hdir, steps) {
   (this.row1 = this.col1 = this.row2 = this.col2 = this.vdir = this.hdir =
      this.steps = this._rows = this._cols = this._absRows = this._absCols = 0);
   this.maxRows = this.maxCols = null;
@@ -161,34 +171,37 @@ function Hop(row1, col1, row2, col2, vdir, hdir, steps) {
   this.setEnd(row2, col2);
   this.setDirections(vdir, hdir);
   this.setSteps(steps);
+  return this;
 }
 
-Hop.prototype._setParams = Hop;
+Vector.prototype._setParams = Vector;
 
-Hop.prototype.clone = function () {
-  return new Hop(this.row1, this.col1, this.row2, this.col2,
-    this.vdir, this.hdir, this.steps, this._endPin);
+Vector.prototype.reset = function () {
+  return this._setParams(0,0,0,0,0,0,0);
 };
 
-Hop.prototype.isValid = function () {
+Vector.prototype.clone = function () {
+  return new Vector(this.row1, this.col1, this.row2, this.col2,
+    this.vdir, this.hdir, this.steps);
+};
+
+Vector.prototype.isValid = function () {
   var rows = this._rows = this.row2 - this.row1;
   var cols = this._cols = this.col2 - this.col1;
   var absRows = this._absRows = Math.abs(rows);
   var absCols = this._absCols = Math.abs(cols);
   // Either rows or cols must be 0, or absolute values must be the same
-  // in both directions. Also, must be an odd number of steps >= 1
-  // XXX moved steps validation to Board (as this only applies for actual game moves, not
-  // just vectors)
-  return !(rows && cols && absRows !== absCols/* || !steps || steps % 2 === 0*/);
+  // in both directions.
+  return !rows || !cols || absRows === absCols;
 };
 
-Hop.prototype.setGridConstraints = function (maxRows, maxCols) {
+Vector.prototype.setGridConstraints = function (maxRows, maxCols) {
   this.maxRows = maxRows;
   this.maxCols = maxCols;
   return this.applyGridConstraints();
 };
 
-Hop.prototype.applyGridConstraints = function () {
+Vector.prototype.applyGridConstraints = function () {
   var maxRows = this.maxRows, maxCols = this.maxCols;
   if (maxRows != null && maxCols != null) {
     var x;
@@ -201,7 +214,7 @@ Hop.prototype.applyGridConstraints = function () {
 };
 
 
-Hop.prototype.correctInvalid = function (correctStartPoint) {
+Vector.prototype.correctInvalid = function (correctStartPoint) {
   this.applyGridConstraints();
   if (this.isValid()) return true;
 
@@ -215,44 +228,44 @@ Hop.prototype.correctInvalid = function (correctStartPoint) {
   return this.isValid();
 };
 
-Hop.prototype.setPoint = function (row, col, setEnd) {
+Vector.prototype.setPoint = function (row, col, setStart) {
   var row = Math.max(row << 0, 0), col = Math.max(col << 0, 0);
-  if (setEnd) {
-    this.row2 = row;
-    this.col2 = col;
-  } else {
+  if (setStart) {
     this.row1 = row;
     this.col1 = col;
+  } else {
+    this.row2 = row;
+    this.col2 = col;
   }
   return this;
 };
 
-Hop.prototype.setStart = function (row, col) {
-  return this.setPoint(row, col, false);
-}
-
-Hop.prototype.setEnd = function (row, col) {
+Vector.prototype.setStart = function (row, col) {
   return this.setPoint(row, col, true);
-}
+};
 
-Hop.prototype.setDirections = function (vdir, hdir) {
+Vector.prototype.setEnd = function (row, col) {
+  return this.setPoint(row, col, false);
+};
+
+Vector.prototype.setDirections = function (vdir, hdir) {
   this.vdir = Math.sign(vdir) << 0;
   this.hdir = Math.sign(hdir) << 0;
   return this;
 };
 
-Hop.prototype.setSteps = function (steps) {
+Vector.prototype.setSteps = function (steps) {
   this.steps = Math.abs(steps << 0);
   return this;
 };
 
-Hop.prototype.calcStepsAndDir = function () {
+Vector.prototype.calcStepsAndDir = function () {
   var rows = this.row2 - this.row1;
   var cols = this.col2 - this.col1;
   return this.setDirections(rows, cols).setSteps(rows || cols);
 };
 
-Hop.prototype.calcPoint = function (calcStartPoint) {
+Vector.prototype.calcPoint = function (calcStartPoint) {
   if (calcStartPoint) {
     return this.setStart(
       this.row2 - this.vdir * this.steps,
