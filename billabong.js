@@ -153,12 +153,12 @@ Move.prototype.addHop = function (hop) {
 };
 
 
-function Hop(row1, col1, row2, col2, vdir, hdir, steps, pinEnd) {
+function Hop(row1, col1, row2, col2, vdir, hdir, steps) {
   (this.row1 = this.col1 = this.row2 = this.col2 = this.vdir = this.hdir =
-     this.steps = this._rows = this._cols = 0);
-  this._endPin = false;
+     this.steps = this._rows = this._cols = this._absRows = this._absCols = 0);
+  this.maxRows = this.maxCols = null;
   this.setStart(row1, col1);
-  this.setEnd(row2, col2, pinEnd);
+  this.setEnd(row2, col2);
   this.setDirections(vdir, hdir);
   this.setSteps(steps);
 }
@@ -173,65 +173,67 @@ Hop.prototype.clone = function () {
 Hop.prototype.isValid = function () {
   var rows = this._rows = this.row2 - this.row1;
   var cols = this._cols = this.col2 - this.col1;
-  var absRows = Math.abs(rows), absCols = Math.abs(cols);
-  var steps = absRows || absCols;
+  var absRows = this._absRows = Math.abs(rows);
+  var absCols = this._absCols = Math.abs(cols);
   // Either rows or cols must be 0, or absolute values must be the same
   // in both directions. Also, must be an odd number of steps >= 1
+  // XXX moved steps validation to Board (as this only applies for actual game moves, not
+  // just vectors)
   return !(rows && cols && absRows !== absCols/* || !steps || steps % 2 === 0*/);
 };
 
-Hop.prototype.constrainInside = function (maxRows, maxCols) {
-  var x;
-  if (x = this.row1) this.row1 = Math.min(maxRows, x) << 0;
-  if (x = this.col1) this.col1 = Math.min(maxCols, x) << 0;
-  if (x = this.row2) this.row2 = Math.min(maxRows, x) << 0;
-  if (x = this.col2) this.col2 = Math.min(maxCols, x) << 0;
+Hop.prototype.setGridConstraints = function (maxRows, maxCols) {
+  this.maxRows = maxRows;
+  this.maxCols = maxCols;
+  return this.applyGridConstraints();
 };
 
-Hop.prototype.correctInvalid = function (maxRows, maxCols) {
-  if (maxRows && maxCols) this.constrainInside(maxRows, maxCols);
+Hop.prototype.applyGridConstraints = function () {
+  var maxRows = this.maxRows, maxCols = this.maxCols;
+  if (maxRows != null && maxCols != null) {
+    var x;
+    if (x = this.row1) this.row1 = Math.min(maxRows, x) << 0;
+    if (x = this.col1) this.col1 = Math.min(maxCols, x) << 0;
+    if (x = this.row2) this.row2 = Math.min(maxRows, x) << 0;
+    if (x = this.col2) this.col2 = Math.min(maxCols, x) << 0;
+  }
+  return this;
+};
+
+
+Hop.prototype.correctInvalid = function (correctStartPoint) {
+  this.applyGridConstraints();
   if (this.isValid()) return true;
+
   var rows = this._rows, cols = this._cols;
-  this.steps = Math.sqrt(rows * rows + cols * cols) << 0;
-  var n = Math.round((Math.atan2(rows, cols) / PI_ON_4) + 4) - 4;
-  var an = Math.abs(n);
-  var anIs4 = an === 4;
-  this.vdir = anIs4 ? 0 : Math.sign(n);
-  this.hdir = an === 2 ? 0 : an === 3 || anIs4 ? -1 : 1;
-  this.calcUnpinnedRef();
-  if (maxRows && maxCols) this.constrainInside(maxRows, maxCols);
-  return this.isValid(); // Should always be true XXX change to true?
+  var absRows = this._absRows, absCols = this._absCols;
+  var steps = this.steps = Math.max(absRows, absCols) << 0;
+  rows = Math.round(rows / steps) * steps;
+  cols = Math.round(cols / steps) * steps;
+  this.setDirections(rows, cols);
+  this.calcPoint(correctStartPoint);
+  return this.isValid();
 };
 
-Hop.prototype.setStart = function (row, col, pin) {
-  this.row1 = Math.max(row << 0, 0);
-  this.col1 = Math.max(col << 0, 0);
-  if (pin) this.pinStart();
+Hop.prototype.setPoint = function (row, col, setEnd) {
+  var row = Math.max(row << 0, 0), col = Math.max(col << 0, 0);
+  if (setEnd) {
+    this.row2 = row;
+    this.col2 = col;
+  } else {
+    this.row1 = row;
+    this.col1 = col;
+  }
   return this;
 };
 
-Hop.prototype.setEnd = function (row, col, pin) {
-  this.row2 = Math.max(row << 0, 0);
-  this.col2 = Math.max(col << 0, 0);
-  if (pin) this.pinEnd();
-  return this;
-};
+Hop.prototype.setStart = function (row, col) {
+  return this.setPoint(row, col, false);
+}
 
-Hop.prototype.setUnpinned = function (row, col) {
-  if (this._endPin) this.setStart(row, col);
-  else this.setEnd(row, col);
-  return this;
-};
-
-Hop.prototype.pinStart = function (unpin) {
-  this._endPin = !!unpin;
-  return this;
-};
-
-Hop.prototype.pinEnd = function (unpin) {
-  this._endPin = !unpin;
-  return this;
-};
+Hop.prototype.setEnd = function (row, col) {
+  return this.setPoint(row, col, true);
+}
 
 Hop.prototype.setDirections = function (vdir, hdir) {
   this.vdir = Math.sign(vdir) << 0;
@@ -250,15 +252,14 @@ Hop.prototype.calcStepsAndDir = function () {
   return this.setDirections(rows, cols).setSteps(rows || cols);
 };
 
-Hop.prototype.calcUnpinnedRef = function () {
-  if (this._endPin) {
-    this.setStart(
+Hop.prototype.calcPoint = function (calcStartPoint) {
+  if (calcStartPoint) {
+    return this.setStart(
       this.row2 - this.vdir * this.steps,
       this.col2 - this.hdir * this.steps);
   } else {
-    this.setEnd(
+    return this.setEnd(
       this.row1 + this.vdir * this.steps,
       this.col1 + this.hdir * this.steps);
   }
-  return this;
 };

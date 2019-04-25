@@ -10,8 +10,10 @@ function DrawHops(boardView) {
   this._onMouseUpListener = this._onMouseUpListener.bind(this);
   this._drawHopBound = this.drawHop.bind(this);
   this.hop = new Hop;
+  this.hop.setGridConstraints(boardView.board.numRows, boardView.board.numCols);
 }
 
+// XXX this is important, should be moved into view.js
 DrawHops.prototype.getGridRefFromElem = function (e) {
   if (e.nodeName !== 'TD') return; // XXX better check
   var gridRef = e.getAttribute('data-grid-ref');
@@ -68,35 +70,47 @@ DrawHops.prototype.clearPreviousCells = function () {
 var radToDegFactor = 180 / Math.PI;
 var pion4 = Math.PI / 4;
 
-function debugHop(board, hop) {
+function debugHop(board, hop, shouldCorrect) {
   var rows = hop.row2 - hop.row1;
   var cols = hop.col2 - hop.col1;
-  var angle = Math.atan2(hop.row2 - hop.row1, hop.col2 - hop.col1);
-  debug.value = `r1: ${hop.row1}, c1: ${hop.col1}
+  var valid = hop.isValid();
+  var s = `BEFORE
+r1: ${hop.row1}, c1: ${hop.col1}
 r2: ${hop.row2}, c2: ${hop.col2}
-angle: ${angle * radToDegFactor}
-angle (in pi/4 units): ${angle / pion4}
-rounded angle (pi/4 units): ${Math.round(angle / pion4)}
-magnitude: ${Math.sqrt(rows * rows + cols * cols) << 0}
+vdir: ${hop.vdir}, hdir: ${hop.hdir}, steps: ${hop.steps}
+isValid: ${valid}
+doesHopCrossStartLine: ${board.doesHopCrossStartLine(hop)}
+is start in billabong: ${board.isRefInBillabong(hop.row1, hop.col1)}
+is end in billabong: ${board.isRefInBillabong(hop.row2, hop.col2)}`;
+  if (shouldCorrect) {
+    valid = hop.correctInvalid();
+    s += '\nAFTER';
+    if (!valid) s += '\ncorrection unsuccessful';
+    else s += `
+r1: ${hop.row1}, c1: ${hop.col1}
+r2: ${hop.row2}, c2: ${hop.col2}
 vdir: ${hop.vdir}, hdir: ${hop.hdir}, steps: ${hop.steps}
 isValid: ${hop.isValid()}
 doesHopCrossStartLine: ${board.doesHopCrossStartLine(hop)}
 is start in billabong: ${board.isRefInBillabong(hop.row1, hop.col1)}
 is end in billabong: ${board.isRefInBillabong(hop.row2, hop.col2)}`;
+  }
+  debug.value = s;
+  return valid;
 }
 
 DrawHops.prototype.drawHop = function () {
   this.animFrameRequested = false;
   var hop = this.hop.calcStepsAndDir();
-  var vdir = hop.vdir, hdir = hop.hdir;
   var board = this.boardView.board;
-  debugHop(board, hop);
-  if (!hop.correctInvalid(board.numRows, board.numCols)) return;
+  if (!debugHop(board, hop, true)) return;
+  //if (!hop.correctInvalid()) return;
 
   this.clearPreviousCells();
   var cellsToClear = this.cellsToClear;
   var cell;
   var cellElems = this.boardView.elems.cells;
+  var vdir = hop.vdir, hdir = hop.hdir;
   var i = hop.row1, j = hop.col1, l = hop.steps + 1;
   for (var c = 0; c < l; ++c) {
     if (!(cell = cellElems[i]) || !(cell = cell[j])) {
