@@ -1,19 +1,29 @@
 
 function BoardView(board, doc) {
   this.board = board;
-  this.elems = {};
   this.document = doc || document;
+  //this.winResizeAss = new AutoStylesheet(this.document);
+  //this.winResizeAss.generateCss = this.genWinResizeCss.bind(this);
+  this.elems = {};
 }
+
+/*
+BoardView.prototype.genWinResizeCss = function () {
+  var docElem = this.document.documentElement;
+  var w = docElem.clientWidth, h = docElem.clientHeight;
+  var board = this.board;
+  var cellW = w / board.numCols, cellH = h / board.numRows;
+};*/
 
 BoardView.prototype.createGrid = function () {
   var board = this.board;
   var elems = this.elems;
+
   createTable(board.numRows, board.numCols, {
     document: this.document,
     refsCtx: elems,
     onCell: onCell
   });
-
 
   function onCell(cell, i, j, row, table) {
     var className = 'r' + i + ' c' + j;

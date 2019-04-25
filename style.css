@@ -1,0 +1,42 @@
+table {
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+
+td {
+  width: 6.6vmin;
+  height: 6.6vmin;
+  background-color: #52be80;
+  border: 1px dashed lightgreen;
+}
+
+td.billabong {
+  background-color: darkblue;
+  border-color: #2874a6 !important;
+  background-image:
+radial-gradient(circle at 100% 150%, darkblue 24%, #2874a6 25%, #2874a6 28%, darkblue 29%, darkblue 36%, #2874a6 36%, #2874a6 40%, transparent 40%, transparent),
+radial-gradient(circle at 0    150%, darkblue 24%, #2874a6 25%, #2874a6 28%, darkblue 29%, darkblue 36%, #2874a6 36%, #2874a6 40%, transparent 40%, transparent),
+radial-gradient(circle at 50%  100%, #2874a6 10%, darkblue 11%, darkblue 23%, #2874a6 24%, #2874a6 30%, darkblue 31%, darkblue 43%, #2874a6 44%, #2874a6 50%, darkblue 51%, darkblue 63%, #2874a6 64%, #2874a6 71%, transparent 71%, transparent),
+radial-gradient(circle at 100% 50%, #2874a6 5%, darkblue 6%, darkblue 15%, #2874a6 16%, #2874a6 20%, darkblue 21%, darkblue 30%, #2874a6 31%, #2874a6 35%, darkblue 36%, darkblue 45%, #2874a6 46%, #2874a6 49%, transparent 50%, transparent),
+radial-gradient(circle at 0    50%, #2874a6 5%, darkblue 6%, darkblue 15%, #2874a6 16%, #2874a6 20%, darkblue 21%, darkblue 30%, #2874a6 31%, #2874a6 35%, darkblue 36%, darkblue 45%, #2874a6 46%, #2874a6 49%, transparent 50%, transparent);
+  background-size: 50px 25px;
+}
+
+table {
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: none; /* Safari */
+   -khtml-user-select: none; /* Konqueror HTML */
+     -moz-user-select: none; /* Firefox */
+      -ms-user-select: none; /* Internet Explorer/Edge */
+          user-select: none; /* Non-prefixed version, currently
+                                supported by Chrome and Opera */
+  touch-action: none;
+}
+
+.startline {
+  border-left: 3px solid darkblue;
+}
+
+#debug {
+  width: 200px; height: 500px; position: fixed; left: 0; top: 100px;
+}

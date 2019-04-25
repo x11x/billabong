@@ -13,7 +13,7 @@ function DrawVectorView(boardView) {
 }
 
 // XXX this is important, should be moved into view.js
-DrawVectorView.prototype.getGridRefFromElem = function (e) {
+function getGridRefFromElem(e) {
   if (e.nodeName !== 'TD') return; // XXX better check
   var gridRef = e.getAttribute('data-grid-ref');
   if (!gridRef) return;
@@ -31,7 +31,7 @@ DrawVectorView.prototype.attachListeners = function (ctx) {
   ctx.addEventListener(pointerEventType + 'down', this._onMouseDownListener, false)
   ctx.addEventListener(pointerEventType + 'move', this._onMouseMoveListener, false)
   ctx.addEventListener(pointerEventType + 'up', this._onMouseUpListener, false)
-}
+};
 
 DrawVectorView.prototype.detachListeners = function (ctx) {
   if (!ctx) ctx = this.listenerCtx || this.boardView.elems.table;
@@ -40,10 +40,10 @@ DrawVectorView.prototype.detachListeners = function (ctx) {
   ctx.removeEventListener(pointerEventType + 'move', this._onMouseMoveListener, false)
   ctx.removeEventListener(pointerEventType + 'up', this._onMouseUpListener, false)
   this.listenerCtx = null;
-}
+};
 
 DrawVectorView.prototype.setVectorPointByElem = function (elem, setStart) {
-  var ref = elem && this.getGridRefFromElem(elem);
+  var ref = elem && getGridRefFromElem(elem);
   if (!ref) return;
   this.vector.setPoint(ref[0], ref[1], setStart);
   this.startElem = setStart ? elem : null;
